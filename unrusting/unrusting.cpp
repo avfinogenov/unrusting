@@ -1,7 +1,9 @@
 ﻿#include <iostream>
 #include <Windows.h>
 #include <chrono>
-
+#include <vector>
+#include <algorithm>
+#include <sstream>
 // main task - create a first point of view 3d text graphics ( some kind of maze, that we can walk through)
 
 
@@ -34,21 +36,30 @@ int main()
     // P - player
     const int MAP_SIDE = 16;
     
-    char myMap[MAP_SIDE*MAP_SIDE] { 35 }; // map full of walls, no empty spaces there
+    std::string myMap; // map full of walls, no empty spaces there
     // todo - create empty spaces
-    for (int i = 0; i < MAP_SIDE * MAP_SIDE ; ++i)
-    {
-        
-            myMap[i] = 35;
-        
-    }
-    for (int i = 1; i < MAP_SIDE - 1; ++i)
-    {
-        for (int j = 1; j < MAP_SIDE - 1; ++j)
-        {
-            myMap[i* MAP_SIDE + j] = '.';
-        }
-    }
+    
+    
+
+    myMap += "################";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#.......##.....#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "#.........######";
+    myMap += "#..............#";
+    myMap += "#..............#";
+    myMap += "################";
+    
+
+
 
 
 
@@ -88,11 +99,21 @@ int main()
         {
             player.x += sinf(player.angle) * (5.0f) * countedStepTime;
             player.y += cosf(player.angle) * (5.0f) * countedStepTime;
+            if (myMap[((int)player.y * MAP_SIDE + (int)player.x)] == '#')
+            {
+                player.x -= sinf(player.angle) * (5.0f) * countedStepTime;
+                player.y -= cosf(player.angle) * (5.0f) * countedStepTime;
+            }
         }
         if (GetAsyncKeyState((unsigned short)'S') && 0x8000)
         {
             player.x -= sinf(player.angle) * (5.0f) * countedStepTime;
             player.y -= cosf(player.angle) * (5.0f) * countedStepTime;
+            if (myMap[((int)player.y * MAP_SIDE + (int)player.x)] == '#')
+            {
+                player.x += sinf(player.angle) * (5.0f) * countedStepTime;
+                player.y += cosf(player.angle) * (5.0f) * countedStepTime;
+            }
         }
         //lets find distances for each colum on screen(from player)
         for (int i = 0; i < SCREEN_WIDTH; ++i)
@@ -102,6 +123,7 @@ int main()
             float distanceToWall = 0;
 
             bool isHitAWall = false;
+            bool isBoundary = false;
             float eyeX = sinf(rayAngle);
             float eyeY = cosf(rayAngle);
 
@@ -122,6 +144,33 @@ int main()
                     if (myMap[testY * MAP_SIDE + testX] == '#')
                     {
                         isHitAWall = true;
+
+                        std::vector<std::pair<float, float>> p;
+                        for (int tx = 0; tx < 2; ++tx)
+                        {
+                            for (int ty = 0; ty < 2; ++ty)
+                            {
+                                float vy = (float)testY + ty - player.y;
+                                float vx = (float)testX + tx - player.x;
+                                float d = sqrt(vy * vy + vx * vx);
+                                float dot = ((eyeX * vx / d) + eyeY * vy / d);
+                                p.push_back(std::make_pair(d, dot));
+                            }
+                            std::sort(p.begin(), p.end(), [](const std::pair<float, float>& left,
+                                const std::pair<float, float>& right)
+                                {return left.first < right.first; });
+                            float bound = 0.01;
+                            if (acos(p.at(0).second) < bound) 
+                            { 
+                                isBoundary = true; 
+                            }
+                            if (acos(p.at(1).second) < bound)
+                            {
+                                isBoundary = true;
+                            }
+                            //if (acos(p.at(2).second) < bound)isBoundary = true;
+                        }
+                        
                     }
                 }
             }
@@ -132,27 +181,7 @@ int main()
 
             short shade = ' ';
 
-            if (distanceToWall <= MAP_SIDE / 4.0)
-            {
-                shade = 'W';
-            }
-            else if (distanceToWall <= MAP_SIDE / 3.0)
-            {
-                shade = 'z';
-            }
-            else if (distanceToWall <= MAP_SIDE / 2.0)
-            {
-                shade = 178;
-            }
-            else if (distanceToWall <= MAP_SIDE )
-            {
-                shade = '.';
-            }
-            else
-            {
-                shade = ' ';
-            }
-
+            
 
         
 
@@ -165,18 +194,85 @@ int main()
                 }
                 else if(j > ceiling && j <=floor)
                 {
+                    if (distanceToWall <= MAP_SIDE / 4.0)
+                    {
+                        shade = 'W';
+                    }
+                    else if (distanceToWall <= MAP_SIDE / 3.0)
+                    {
+                        shade = 'z';
+                    }
+                    else if (distanceToWall <= MAP_SIDE / 2.0)
+                    {
+                        shade = 178;
+                    }
+                    else if (distanceToWall <= MAP_SIDE)
+                    {
+                        shade = '.';
+                    }
+                    else
+                    {
+                        shade = ' ';
+                    }
+                    if (isBoundary)
+                    {
+                        shade = ' ';
+                    }
+
+
                     screen[j * SCREEN_WIDTH + i] = shade;
                 }
                 else
                 {
-                    screen[j * SCREEN_WIDTH + i] = ' ';
+                    float b = 1.0f - (((float)j - SCREEN_HEIGHT / 2.0f) / (SCREEN_HEIGHT / 2.0f));
+                    if (b < 0.25)
+                    {
+                        shade = '#';
+                    }
+                    else if (b < 0.5)
+                    {
+                        shade = 'x';
+                    }
+                    else if (b < 0.75)
+                    {
+                        shade = '.';
+                    }
+                    else if (b < 0.9)
+                    {
+                        shade = '_';
+                    }
+                    else
+                    {
+                        shade = ' ';
+                    }
+                    screen[j * SCREEN_WIDTH + i] = shade;
                 }
             }
 
 
         }
 
+        //swprintf_s(screen, 40, L"X=%3.2f, Y=%3.2f, A=%3.2f, FPS=%3.2f ", player.x, player.y, player.angle, 1.0f / countedStepTime);
+        std::stringstream tmp;
+        tmp << "X=" << player.x << ", Y=" << player.y << ", A=" << player.angle <<
+            ", FPS=" << 1.0f / countedStepTime;
+        std::string tmp2;
+        tmp2 = tmp.str();
+        for (int k = 0; k < tmp2.size(); ++k)
+        {
+            screen[k] = tmp2[k];
+        }
+        
 
+        for (int nx = 0; nx < MAP_SIDE; ++nx)
+        {
+            for (int ny = 0; ny < MAP_SIDE; ++ny)
+            {
+                screen[(ny + 1) * SCREEN_WIDTH + nx] = (myMap[ny * MAP_SIDE + nx]);
+            }
+        }
+
+        screen[(int)(((int)player.y + 1) * SCREEN_WIDTH + player.x)] = 'P';
 
         //some paints
         WriteConsoleOutputCharacter(hConsole, screen, SCREEN_WIDTH * SCREEN_HEIGHT, 
